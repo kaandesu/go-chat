@@ -2,16 +2,17 @@
 all: build test
 
 run:
-	echo "Running"
+	@echo "Running"
 	@go run .
 
 build:
-	echo "Building..."
+	@echo "Building..."
 	@go build .
 
 test:
 	@go test ./...
 
 clean:
-	echo "Cleaning..."
-	@rm go-chat chat.log
+	@echo "Cleaning..."
+	@if [ -f go-chat ]; then rm go-chat; fi
+	@if [ -f chat.log ]; then rm chat.log; fi
