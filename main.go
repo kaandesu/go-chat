@@ -63,7 +63,7 @@ func (s *Server) acceptLoop() {
 		_, found := s.users[usrAddr]
 
 		if !found {
-			con.Write([]byte("Enter username: \n"))
+			con.Write([]byte("Enter username: "))
 			s.users[usrAddr] = NewUser(usrAddr, "")
 		}
 		go s.handleConection(con)
@@ -94,12 +94,13 @@ func (s *Server) handleConection(con net.Conn) {
 		usr, found := s.users[usrAddr]
 
 		if found && usr.username == "" {
-			s.users[usrAddr].username = string(msg)
-		}
-
-		s.msgch <- Message{
-			from:    s.users[usrAddr],
-			payload: msg,
+			s.users[usrAddr].username = strings.ReplaceAll(string(msg), "\n", "")
+			con.Write([]byte("Welcome " + string(msg) + "\n"))
+		} else {
+			s.msgch <- Message{
+				from:    s.users[usrAddr],
+				payload: msg,
+			}
 		}
 
 	}
@@ -108,7 +109,7 @@ func (s *Server) handleConection(con net.Conn) {
 func (s *Server) handleMessages() {
 	logger := NewLogger("./chat.log")
 	for msg := range s.msgch {
-		formatted := fmt.Sprintf("> %s: %s", strings.ReplaceAll(msg.from.username, "\n", ""), string(msg.payload))
+		formatted := fmt.Sprintf("> %s: %s", msg.from.username, string(msg.payload))
 		fmt.Println(formatted)
 		logger.Println(formatted)
 	}
