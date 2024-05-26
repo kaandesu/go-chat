@@ -70,13 +70,15 @@ func (s *Server) acceptLoop() {
 
 func (s *Server) handleConection(con net.Conn) {
 	buf := make([]byte, 2048)
+
 	defer con.Close()
 	for {
 		n, err := con.Read(buf)
 		if err != nil {
-			formatted := fmt.Sprintf("%s disconnected! \n", s.users[con.RemoteAddr().String()].username)
+			formatted := fmt.Sprintf("%s disconnected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users)-1)
 			s.logger.Print(formatted)
 			fmt.Print(formatted)
+			delete(s.users, con.RemoteAddr().String())
 			break
 		}
 
@@ -88,6 +90,11 @@ func (s *Server) handleConection(con net.Conn) {
 		if found && usr.username == "" {
 			s.users[usrAddr].username = strings.ReplaceAll(string(msg), "\n", "")
 			con.Write([]byte("Welcome " + string(msg) + "\n"))
+
+			f := fmt.Sprintf("%s connected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users))
+			s.logger.Print(f)
+			fmt.Print(f)
+
 		} else {
 			s.msgch <- Message{
 				from:    s.users[usrAddr],
