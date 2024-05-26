@@ -58,7 +58,7 @@ func (s *Server) acceptLoop() {
 
 		if !found {
 			con.Write([]byte("Enter username: "))
-			s.users[usrAddr] = NewUser(usrAddr, "")
+			s.users[usrAddr] = NewUser(usrAddr, "", con)
 		}
 		go s.handleConection(con)
 
@@ -96,8 +96,15 @@ func (s *Server) handleConection(con net.Conn) {
 func (s *Server) handleMessages() {
 	logger := NewLogger("./chat.log")
 	for msg := range s.msgch {
-		formatted := fmt.Sprintf("> %s: %s", msg.from.username, string(msg.payload))
-		fmt.Println(formatted)
-		logger.Println(formatted)
+		formatted := fmt.Sprintf("> %s: %s \n", msg.from.username, string(msg.payload))
+
+		for _, user := range s.users {
+			if user.address != msg.from.address {
+				user.conn.Write([]byte(formatted))
+			}
+		}
+
+		fmt.Print(formatted)
+		logger.Print(formatted)
 	}
 }
