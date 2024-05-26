@@ -10,5 +10,5 @@ func NewLogger(filename string) *log.Logger {
 	if err != nil {
 		panic(err)
 	}
-	return log.New(logFile, "[kaandesu/go-chat]", log.Lshortfile|log.Ldate|log.Ltime)
+	return log.New(logFile, "[kaandesu/go-chat] ", log.Ldate|log.Ltime)
 }

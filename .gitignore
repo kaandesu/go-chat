@@ -1,4 +1,5 @@
 .DS_Store
 go-chat
 chat.log
-
+coverage.txt
+dist/
