@@ -10,5 +10,6 @@ func main() {
 		log.Fatalln(err)
 	}
 	server := NewServer(port)
+	server := NewServer(port, "main")
 	log.Fatal(server.Start())
 }

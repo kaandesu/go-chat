@@ -22,12 +22,15 @@ type Server struct {
 	users        map[string]*User
 	childServers map[string]*Server
 	serverch     chan *Server
+	name         string
 	address      string
 }
 
 func NewServer(address string) *Server {
+func NewServer(address, name string) *Server {
 	return &Server{
 		address:      address,
+		name:         name,
 		msgch:        make(chan Message),
 		quitch:       make(chan struct{}),
 		users:        make(map[string]*User),
