@@ -130,8 +130,10 @@ func (s *Server) handleConection(con net.Conn) {
 			isMessage = false
 			if usr.connectedServer == nil {
 				con.Write([]byte("Enter room name: "))
+				continue
 			}
 		}
+
 		if found && usr.connectedServer == nil {
 			port, err := returnFirstAvailablePort(3000, 20)
 			if err != nil {
