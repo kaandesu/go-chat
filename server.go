@@ -37,7 +37,7 @@ func NewServer(address string) *Server {
 	}
 }
 
-func returnFirstAvailablePort(portNo int, tryUntil int) (string, error) {
+func availablePort(portNo int, tryUntil int) (string, error) {
 	var err error
 	var ln net.Listener
 	for i := range tryUntil {
@@ -135,7 +135,7 @@ func (s *Server) handleConection(con net.Conn) {
 		}
 
 		if found && usr.connectedServer == nil {
-			port, err := returnFirstAvailablePort(3000, 20)
+			port, err := availablePort(3000, 20)
 			if err != nil {
 				log.Fatalln(err)
 			}

@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	port, err := returnFirstAvailablePort(3000, 20)
+	port, err := availablePort(3000, 20)
 	if err != nil {
 		log.Fatalln(err)
 	}
