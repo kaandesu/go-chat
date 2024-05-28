@@ -26,7 +26,6 @@ type Server struct {
 	address      string
 }
 
-func NewServer(address string) *Server {
 func NewServer(address, name string) *Server {
 	return &Server{
 		address:      address,
@@ -35,7 +34,7 @@ func NewServer(address, name string) *Server {
 		quitch:       make(chan struct{}),
 		users:        make(map[string]*User),
 		childServers: make(map[string]*Server),
-		serverch:     make(chan *Server, 5), // NOTE: 5 concurrent servers, i think, update later
+		serverch:     make(chan *Server),
 		logger:       NewLogger("./chat.log"),
 	}
 }
@@ -57,8 +56,7 @@ func availablePort(portNo int, tryUntil int) (string, error) {
 
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.address)
-	fmt.Printf("Starting server on [%s] \n", s.address)
-	s.logger.Printf("Starting server on [%s] \n", s.address)
+	s.logAndPrint(fmt.Sprintf("Starting server on [%s] \n", s.address))
 	if err != nil {
 		return err
 	}
@@ -111,25 +109,24 @@ func (s *Server) handleConection(con net.Conn) {
 		n, err := con.Read(buf)
 		if err != nil {
 			formatted := fmt.Sprintf("%s disconnected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users)-1)
-			s.logger.Print(formatted)
-			fmt.Print(formatted)
+			s.logAndPrint(formatted)
 			delete(s.users, con.RemoteAddr().String())
 			break
 		}
 
-		msg := buf[:n]
+		msg := strings.ReplaceAll(string(buf[:n]), "\n", "")
+		fmt.Print(msg)
 		usrAddr := con.RemoteAddr().String()
 
 		usr, found := s.users[usrAddr]
 
 		isMessage := true
 		if found && usr.username == "" {
-			s.users[usrAddr].username = strings.ReplaceAll(string(msg), "\n", "")
-			con.Write([]byte("Welcome " + string(msg) + "\n"))
+			s.users[usrAddr].username = msg
+			con.Write([]byte("Welcome " + msg + "\n"))
 
 			f := fmt.Sprintf("%s connected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users))
-			s.logger.Print(f)
-			fmt.Print(f)
+			s.logAndPrint(f)
 			isMessage = false
 			if usr.connectedServer == nil {
 				con.Write([]byte("Enter room name: "))
@@ -138,38 +135,55 @@ func (s *Server) handleConection(con net.Conn) {
 		}
 
 		if found && usr.connectedServer == nil {
-			port, err := availablePort(3000, 20)
-			if err != nil {
-				log.Fatalln(err)
+			childServer, serverfound := s.childServers[msg]
+			if serverfound {
+				usr.connectedServer = childServer
+				childServer.users[usr.address] = usr
+				go childServer.handleMessages()
+			} else {
+
+				port, err := availablePort(3000, 20)
+				if err != nil {
+					s.logger.Fatalln(err)
+					log.Fatalln(err)
+				}
+				user := s.users[usrAddr]
+				server := NewServer(port, msg)
+				server.users[user.address] = user
+				user.connectedServer = server
+				s.childServers[msg] = server
+				s.serverch <- server
 			}
-			server := NewServer(port)
-			s.serverch <- server
-			usr.connectedServer = server
-			// TODO: transfer user connection to that server?????
 			isMessage = false
 		}
 
-		if isMessage {
-			s.msgch <- Message{
-				from:    s.users[usrAddr],
-				payload: msg,
+		if found && usr.connectedServer != nil && isMessage {
+			usr.connectedServer.msgch <- Message{
+				from:    usr.connectedServer.users[usrAddr],
+				payload: buf[:n],
 			}
 		}
 
 	}
 }
 
+func (s *Server) logAndPrint(text string) {
+	fmt.Print(text)
+	s.logger.Print(text)
+}
+
+func (s *Server) broadcastMessage(msg Message) {
+	formatted := fmt.Sprintf("[%s:%s] >> %s: %s \n", msg.from.connectedServer.name, msg.from.connectedServer.address, msg.from.username, string(msg.payload))
+	for _, user := range s.users {
+		if user.address != msg.from.address {
+			user.conn.Write([]byte(formatted))
+		}
+	}
+	s.logAndPrint(formatted)
+}
+
 func (s *Server) handleMessages() {
 	for msg := range s.msgch {
-		formatted := fmt.Sprintf("> %s: %s \n", msg.from.username, string(msg.payload))
-
-		for _, user := range s.users {
-			if user.address != msg.from.address {
-				user.conn.Write([]byte(formatted))
-			}
-		}
-
-		fmt.Print(formatted)
-		s.logger.Print(formatted)
+		msg.from.connectedServer.broadcastMessage(msg)
 	}
 }
