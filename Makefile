@@ -2,6 +2,7 @@
 all: build test
 
 run:
+	@clear
 	@echo "Running"
 	@go run .
 

@@ -5,6 +5,10 @@ import (
 )
 
 func main() {
-	server := NewServer(":3000")
+	port, err := availablePort(3000, 20)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	server := NewServer(port, "main")
 	log.Fatal(server.Start())
 }
