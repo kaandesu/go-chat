@@ -65,7 +65,7 @@ func (s *Server) Start() error {
 	s.listener = ln
 
 	go s.acceptLoop()
-	go s.handleMessages()
+	go s.distributeMessages()
 
 	go s.handleChildServers()
 	<-s.quitch
@@ -123,7 +123,7 @@ func (s *Server) handleConection(con net.Conn) {
 		isMessage := true
 		if found && usr.username == "" {
 			s.users[usrAddr].username = msg
-			con.Write([]byte("Welcome " + msg + "\n"))
+			con.Write([]byte(fmt.Sprintf("Welcome %s! \n", msg)))
 
 			f := fmt.Sprintf("%s connected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users))
 			s.logAndPrint(f)
@@ -139,7 +139,7 @@ func (s *Server) handleConection(con net.Conn) {
 			if serverfound {
 				usr.connectedServer = childServer
 				childServer.users[usr.address] = usr
-				go childServer.handleMessages()
+				go childServer.distributeMessages()
 			} else {
 
 				port, err := availablePort(3000, 20)
@@ -154,14 +154,12 @@ func (s *Server) handleConection(con net.Conn) {
 				s.childServers[msg] = server
 				s.serverch <- server
 			}
+			con.Write([]byte("\n(type /help for all the commands)\n\n"))
 			isMessage = false
 		}
 
 		if found && usr.connectedServer != nil && isMessage {
-			usr.connectedServer.msgch <- Message{
-				from:    usr.connectedServer.users[usrAddr],
-				payload: buf[:n],
-			}
+			handleMessages(usr, buf[:n])
 		}
 
 	}
@@ -182,7 +180,35 @@ func (s *Server) broadcastMessage(msg Message) {
 	s.logAndPrint(formatted)
 }
 
-func (s *Server) handleMessages() {
+func handleMessages(from *User, payload []byte) {
+	message := strings.ReplaceAll(string(payload), "\n", "")
+	// TODO: instead of checking the whole message check its a prefixes
+	switch message {
+	case "/exit":
+		// TODO: when connection is closed delete the user address from the main and room server
+		from.conn.Close()
+	case "/join":
+		from.conn.Write([]byte("Command not available. \n\n"))
+	case "/rename":
+		from.conn.Write([]byte("Command not available. \n\n"))
+	case "/list":
+		from.conn.Write([]byte("Command not available. \n\n"))
+	case "/help":
+		// TODO: i hate this long line below, will chanage it
+		from.conn.Write([]byte("\n/exit : disconnect from the server \n/list : list all available rooms \n/join <room_name> : join another room \n/rename <name> : change your username (will notify all the users in your current room) \n/help lists all commands\n\n"))
+	default:
+		if strings.HasPrefix(message, "/") {
+			from.conn.Write([]byte("Invalid commmand: " + message + "\n\n"))
+		} else {
+			from.connectedServer.msgch <- Message{
+				from:    from.connectedServer.users[from.address],
+				payload: payload,
+			}
+		}
+	}
+}
+
+func (s *Server) distributeMessages() {
 	for msg := range s.msgch {
 		msg.from.connectedServer.broadcastMessage(msg)
 	}
