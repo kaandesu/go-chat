@@ -93,7 +93,7 @@ func (s *Server) acceptLoop() {
 
 		if _, found := s.users[usrAddr]; !found {
 			con.Write([]byte("Enter username: "))
-			s.users[usrAddr] = NewUser(usrAddr, "", con)
+			s.users[usrAddr] = NewUser(usrAddr, "", con, s)
 		}
 
 		go s.handleConection(con)
@@ -123,7 +123,7 @@ func (s *Server) handleConection(con net.Conn) {
 		isMessage := true
 		if found && usr.username == "" {
 			s.users[usrAddr].username = msg
-			con.Write([]byte(fmt.Sprintf("Welcome %s! \n", msg)))
+			con.Write([]byte("Welcome " + msg + "! \n"))
 
 			f := fmt.Sprintf("%s connected! (%d online) \n", s.users[con.RemoteAddr().String()].username, len(s.users))
 			s.logAndPrint(f)
@@ -153,6 +153,7 @@ func (s *Server) handleConection(con net.Conn) {
 				user.connectedServer = server
 				s.childServers[msg] = server
 				s.serverch <- server
+				go server.distributeMessages()
 			}
 			con.Write([]byte("\n(type /help for all the commands)\n\n"))
 			isMessage = false
@@ -180,19 +181,46 @@ func (s *Server) broadcastMessage(msg Message) {
 	s.logAndPrint(formatted)
 }
 
+func (s *Server) usernameExists(name string) bool {
+	found := false
+	for _, u := range s.users {
+		if u.username == name {
+			found = true
+		}
+	}
+	return found
+}
+
 func handleMessages(from *User, payload []byte) {
 	message := strings.ReplaceAll(string(payload), "\n", "")
-	// TODO: instead of checking the whole message check its a prefixes
-	switch message {
+	switch command := strings.Split(message, " "); command[0] {
 	case "/exit":
 		// TODO: when connection is closed delete the user address from the main and room server
 		from.conn.Close()
 	case "/join":
-		from.conn.Write([]byte("Command not available. \n\n"))
+		if len(command) == 0 {
+			from.conn.Write([]byte("Not enough arguments /join <room_name> \n\n"))
+		} else {
+			from.conn.Write([]byte("Command not available. \n\n"))
+		}
 	case "/rename":
-		from.conn.Write([]byte("Command not available. \n\n"))
+		if len(command) <= 1 {
+			from.conn.Write([]byte("Not enough arguments /rename <name> \n\n"))
+		} else {
+			name := command[1]
+			if !from.connectedServer.usernameExists(name) {
+				from.connectedServer.broadcastMessage(Message{from: from, payload: []byte("[Changed their username to '" + name + "'' ]")})
+				from.username = name
+			} else {
+				from.conn.Write([]byte("Username '" + name + "' already in use in this room, try another. \n\n"))
+			}
+		}
 	case "/list":
-		from.conn.Write([]byte("Command not available. \n\n"))
+		from.conn.Write([]byte(strconv.Itoa(len(from.mainServer.childServers)) + " rooms in total:\n"))
+		for _, room := range from.mainServer.childServers {
+			from.conn.Write([]byte(room.name + "\n"))
+		}
+		from.conn.Write([]byte("\n"))
 	case "/help":
 		// TODO: i hate this long line below, will chanage it
 		from.conn.Write([]byte("\n/exit : disconnect from the server \n/list : list all available rooms \n/join <room_name> : join another room \n/rename <name> : change your username (will notify all the users in your current room) \n/help lists all commands\n\n"))
